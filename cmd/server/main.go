@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 	"github.com/odevpedro/ecom-shipping-service/internal/handler"
+	"github.com/odevpedro/ecom-shipping-service/internal/service"
 )
 
 func main() {
@@ -19,13 +20,15 @@ func main() {
 		port = "3005"
 	}
 
+	shippingSvc := service.NewShippingService()
+	shippingHandler := handler.NewShippingHandler(shippingSvc)
+
 	r := mux.NewRouter()
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
 	}).Methods("GET")
 
-	shippingHandler := handler.NewShippingHandler()
 	r.HandleFunc("/api/shipping/calculate", shippingHandler.Calculate).Methods("POST")
 	r.HandleFunc("/api/shipping/{orderId}/track", shippingHandler.Track).Methods("GET")
 
