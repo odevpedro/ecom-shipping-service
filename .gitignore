@@ -1,0 +1,6 @@
+/vendor/
+/dist/
+.env
+*.log
+.DS_Store
+/tmp/
