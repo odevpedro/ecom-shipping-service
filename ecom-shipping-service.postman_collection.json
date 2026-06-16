@@ -1,0 +1,59 @@
+{
+  "info": {
+    "name": "ecom-shipping-service",
+    "description": "API de frete e rastreio\n\nBase URL: {{base_url}}",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "ecom-shipping"
+  },
+  "item": [
+    {
+      "name": "Calcular frete",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var json = pm.response.json();",
+              "    pm.collectionVariables.set('shipping_carrier', json.carrier);",
+              "    pm.collectionVariables.set('shipping_price', json.price_cents);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"from_cep\": \"01001000\",\n  \"to_cep\": \"20020000\",\n  \"weight_kg\": 2.5,\n  \"height_cm\": 10,\n  \"width_cm\": 20,\n  \"length_cm\": 30\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/shipping/calculate",
+          "host": ["{{base_url}}"],
+          "path": ["api", "shipping", "calculate"]
+        }
+      }
+    },
+    {
+      "name": "Rastrear pedido",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/shipping/{{order_id}}/track",
+          "host": ["{{base_url}}"],
+          "path": ["api", "shipping", "{{order_id}}", "track"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3005", "type": "string" },
+    { "key": "order_id", "value": "order-123", "type": "string" },
+    { "key": "shipping_carrier", "value": "", "type": "string" },
+    { "key": "shipping_price", "value": "", "type": "string" }
+  ]
+}
