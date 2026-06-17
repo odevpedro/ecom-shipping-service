@@ -3,8 +3,9 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -16,19 +17,49 @@ import (
 	"github.com/odevpedro/ecom-shipping-service/internal/service"
 )
 
+func autoMigrate(db *sql.DB) error {
+	ddl := `
+	CREATE TABLE IF NOT EXISTS shipping_quotes (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		from_cep VARCHAR(8) NOT NULL,
+		to_cep VARCHAR(8) NOT NULL,
+		weight_kg DOUBLE PRECISION,
+		price_cents INTEGER NOT NULL,
+		estimated_days INTEGER NOT NULL,
+		carrier VARCHAR(100),
+		service_name VARCHAR(100),
+		created_at TIMESTAMPTZ DEFAULT NOW()
+	);
+	CREATE TABLE IF NOT EXISTS tracking_events (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		order_id VARCHAR(100) NOT NULL,
+		location VARCHAR(255),
+		description TEXT,
+		event_date TIMESTAMPTZ,
+		created_at TIMESTAMPTZ DEFAULT NOW()
+	);`
+	_, err := db.Exec(ddl)
+	return err
+}
+
 func main() {
 	godotenv.Load()
 	cfg := config.Load()
+	logger := config.NewLogger()
 
 	var db *sql.DB
 	if cfg.DatabaseURL != "" {
 		var err error
 		db, err = repository.NewPostgres(cfg.DatabaseURL)
 		if err != nil {
-			log.Printf("WARNING: could not connect to database: %v", err)
+			logger.Warn("could not connect to database", "error", err)
 		} else {
 			defer db.Close()
-			log.Println("connected to PostgreSQL")
+			logger.Info("connected to PostgreSQL")
+
+			if err := autoMigrate(db); err != nil {
+				logger.Warn("auto-migration failed", "error", err)
+			}
 		}
 	}
 	_ = db
@@ -57,8 +88,12 @@ func main() {
 	r.HandleFunc("/api/shipping/{orderId}/track", shippingHandler.Track).Methods("GET")
 
 	c := cors.Default()
-	handler := c.Handler(r)
+	h := c.Handler(r)
 
-	log.Printf("Shipping Service running on port %s", cfg.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, handler))
+	logger.Info("Shipping Service started", "port", cfg.Port)
+	slog.SetDefault(logger)
+	if err := http.ListenAndServe(":"+cfg.Port, h); err != nil {
+		logger.Error("server failed to start", "error", err)
+		os.Exit(1)
+	}
 }

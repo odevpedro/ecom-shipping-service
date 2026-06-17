@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ecom
+      POSTGRES_PASSWORD: ecom
+      POSTGRES_DB: ecom_shipping
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecom"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      DATABASE_URL: postgresql://ecom:ecom@db:5432/ecom_shipping
+      ORDER_SERVICE_URL: http://order-service:3003
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
