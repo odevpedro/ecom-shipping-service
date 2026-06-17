@@ -365,3 +365,137 @@ sequenceDiagram
 | **Contexto** | O Order Service e o frontend dependem do endpoint de tracking, mas a integração real com Correios ainda não estava disponível. |
 | **Decisão** | Implementar o endpoint com dados mock fixos, mas com o contrato de resposta idêntico ao que será usado futuramente. |
 | **Consequências** | Permite desenvolvimento paralelo. Quando a integração real for implementada, o contrato da API não muda — apenas a fonte dos eventos troca de stub para real. |
+
+---
+
+# Feature: Persistência em PostgreSQL
+
+> **Versão:** 1.0.0
+> **Implementada em:** 2026-06-17
+> **Status:** Concluída
+
+## Resumo
+
+Camada de persistência com `database/sql` + `github.com/lib/pq`. Cria as tabelas `shipping_quotes` e `tracking_events` via DDL automática na inicialização. Fornece funções CRUD básicas em `internal/repository/`.
+
+**Motivação:** Substituir dados em memória por armazenamento durável, preparando o serviço para ambiente de produção.
+**Resultado:** Conexão PostgreSQL gerenciada, tabelas criadas automaticamente, funções `SaveQuote`, `GetQuoteByID`, `SaveEvent`, `GetEventsByOrderID` disponíveis.
+
+---
+
+## Fluxo Principal
+
+### 1. Conexão
+
+- **Arquivo:** `internal/repository/postgres.go:8`
+- **Função:** `NewPostgres(dsn string) (*sql.DB, error)`
+- **Passos:**
+  1. `sql.Open("postgres", dsn)`
+  2. `db.Ping()` — valida a conexão
+  3. `createTables(db)` — executa DDL (`CREATE TABLE IF NOT EXISTS`)
+
+Se a conexão falhar, o servidor loga um warning e continua sem banco (modo degradado para desenvolvimento).
+
+---
+
+### 2. Tabelas
+
+| Tabela | Colunas | Chave |
+|--------|---------|-------|
+| `shipping_quotes` | `id UUID`, `from_cep`, `to_cep`, `weight_kg`, `price_cents`, `estimated_days`, `carrier`, `service_name`, `created_at` | `id` |
+| `tracking_events` | `id UUID`, `order_id`, `location`, `description`, `event_date`, `created_at` | `id` |
+
+---
+
+## Decisões Técnicas
+
+### ADR-003 — DDL automática na inicialização
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-06-17 |
+| **Contexto** | Evitar scripts SQL manuais e migrações complexas na fase MVP. |
+| **Decisão** | Executar `CREATE TABLE IF NOT EXISTS` dentro de `NewPostgres`. |
+| **Consequências** | Schema sempre sincronizado com o código. Para produção futura, migrações versionadas (golang-migrate) devem substituir esta abordagem. |
+
+---
+
+# Feature: Estrutura para Transportadoras Reais (Carrier Interface)
+
+> **Versão:** 1.0.0
+> **Implementada em:** 2026-06-17
+> **Status:** Concluída
+
+## Resumo
+
+Define a interface `Carrier` que padroniza o contrato de cálculo de frete e rastreamento para qualquer transportadora. A lógica legada foi movida para `StubCarrier`, e um scaffold `CorreiosCarrier` foi criado para futura integração.
+
+**Motivação:** Permitir que múltiplas transportadoras (Correios, Jadlog, Loggi) sejam plugadas sem modificar o `ShippingService` nem os handlers.
+**Resultado:** Arquitetura de adapter — `ShippingService` delega para qualquer implementação de `Carrier`.
+
+---
+
+## Fluxo Principal
+
+### Contrato
+
+- **Arquivo:** `internal/service/carrier.go`
+- **Interface:**
+  - `Calculate(input model.CalculateInput) (model.CalculateOutput, error)`
+  - `Track(orderID string) (model.TrackingOutput, error)`
+
+### Implementações
+
+| Implementação | Arquivo | Comportamento |
+|---------------|---------|---------------|
+| `StubCarrier` | `internal/service/carrier_stub.go` | Lógica heurística legada (prefixo CEP + peso). Track retorna `ErrNotFound` para qualquer orderID diferente de `"order-123"` |
+| `CorreiosCarrier` | `internal/service/carrier_correios.go` | Scaffold — todos os métodos retornam `"Correios integration not implemented yet"` |
+
+### Integração com ShippingService
+
+- `ShippingService` agora recebe um `Carrier` no construtor e delega `Calculate` e `Track` para ele.
+- Nenhuma lógica de negócio permanece em `ShippingService` — ele é puramente um facade.
+
+---
+
+# Feature: Testes de Handler (Integração)
+
+> **Versão:** 1.0.0
+> **Implementada em:** 2026-06-17
+> **Status:** Concluída
+
+## Resumo
+
+Testes de integração HTTP usando `httptest.NewRecorder` e `httptest.NewRequest` para validar os handlers sem necessidade de servidor rodando.
+
+**Motivação:** Garantir que a camada HTTP responde corretamente (status codes, corpo da resposta) para cenários de sucesso e erro.
+**Resultado:** 4 cenários cobrindo `POST /api/shipping/calculate` (200 e 400) e `GET /api/shipping/{orderId}/track` (200 e 404).
+
+---
+
+## Cenários
+
+### 1. `POST /api/shipping/calculate` — 200
+
+Body válido com `from_cep`, `to_cep` e `weight_kg`. Retorna `200` com JSON contendo `carrier`, `price_cents`, `estimated_days`.
+
+### 2. `POST /api/shipping/calculate` — 400
+
+Body malformado (`{invalid`). Retorna `400` com envelope de erro padronizado.
+
+### 3. `GET /api/shipping/{orderId}/track` — 200
+
+orderId = `"order-123"`. Retorna `200` com `order_id`, `carrier`, `status`, `events`.
+
+### 4. `GET /api/shipping/{orderId}/track` — 404
+
+orderId = `"nonexistent"`. Retorna `404` com `NOT_FOUND` — o `StubCarrier` só reconhece `"order-123"`.
+
+---
+
+## Execução
+
+```bash
+go test ./internal/handler/... -v
+```

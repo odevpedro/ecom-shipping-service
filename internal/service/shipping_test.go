@@ -7,13 +7,16 @@ import (
 )
 
 func TestCalculateReturnsValues(t *testing.T) {
-	svc := NewShippingService()
+	svc := NewShippingService(NewStubCarrier())
 	input := model.CalculateInput{
 		FromCEP:  "01001000",
 		ToCEP:    "20020000",
 		WeightKg: 2.5,
 	}
-	result := svc.Calculate(input)
+	result, err := svc.Calculate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if result.Carrier == "" {
 		t.Error("expected carrier to be set")
@@ -30,10 +33,10 @@ func TestCalculateReturnsValues(t *testing.T) {
 }
 
 func TestCalculatePricing(t *testing.T) {
-	svc := NewShippingService()
+	svc := NewShippingService(NewStubCarrier())
 
-	light := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "02002000", WeightKg: 1})
-	heavy := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "02002000", WeightKg: 10})
+	light, _ := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "02002000", WeightKg: 1})
+	heavy, _ := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "02002000", WeightKg: 10})
 
 	if heavy.PriceCents <= light.PriceCents {
 		t.Error("expected heavy to cost more than light")
@@ -41,10 +44,10 @@ func TestCalculatePricing(t *testing.T) {
 }
 
 func TestCalculateDistance(t *testing.T) {
-	svc := NewShippingService()
+	svc := NewShippingService(NewStubCarrier())
 
-	nearby := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "01002000", WeightKg: 1})
-	far := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "30000000", WeightKg: 1})
+	nearby, _ := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "01002000", WeightKg: 1})
+	far, _ := svc.Calculate(model.CalculateInput{FromCEP: "01001000", ToCEP: "30000000", WeightKg: 1})
 
 	if far.EstimatedDays <= nearby.EstimatedDays {
 		t.Error("expected far delivery to take longer than nearby")
@@ -52,8 +55,11 @@ func TestCalculateDistance(t *testing.T) {
 }
 
 func TestTrackReturnsEvents(t *testing.T) {
-	svc := NewShippingService()
-	result := svc.Track("order-123")
+	svc := NewShippingService(NewStubCarrier())
+	result, err := svc.Track("order-123")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if result.OrderID != "order-123" {
 		t.Errorf("expected order-123, got %s", result.OrderID)

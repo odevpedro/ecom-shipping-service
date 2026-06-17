@@ -18,8 +18,8 @@
 
 O modelo de dados do Shipping Service é atualmente **100% em memória (stub)**, sem banco de dados. As entidades são structs Go que representam os contratos de entrada/saída da API. O núcleo do domínio gira em torno de duas operações: **cálculo de frete** (input → output com preço e prazo) e **rastreamento** (order ID → eventos mock).
 
-**Banco de dados:** Nenhum (stub em memória — PostgreSQL planejado)
-**ORM / acesso:** N/A
+**Banco de dados:** PostgreSQL via `database/sql` + `github.com/lib/pq`
+**ORM / acesso:** N/A (SQL direto)
 **Extensões relevantes:** N/A
 
 ---
@@ -58,6 +58,27 @@ erDiagram
     }
 
     TRACKING_OUTPUT ||--o{ TRACKING_EVENT : contem
+
+    SHIPPING_QUOTE {
+        uuid id PK
+        string from_cep
+        string to_cep
+        decimal weight_kg
+        int price_cents
+        int estimated_days
+        string carrier
+        string service_name
+        timestamp created_at
+    }
+
+    TRACKING_EVENT_STORED {
+        uuid id PK
+        string order_id
+        string location
+        string description
+        timestamp event_date
+        timestamp created_at
+    }
 ```
 
 ---
@@ -137,6 +158,49 @@ erDiagram
 | `2026-06-14 08:30` | São Paulo, SP | Objeto postado |
 | `2026-06-15 14:15` | Curitiba, PR | Em trânsito para unidade de distribuição |
 | `2026-06-16 09:00` | Curitiba, PR | Saiu para entrega ao destinatário |
+
+---
+
+---
+
+### ShippingQuote
+
+> Entidade persistida no PostgreSQL após cada cálculo de frete.
+
+**Struct:** `repository.ShippingQuote`
+**Arquivo:** `internal/repository/shipping_quote_repo.go:5`
+**Tabela:** `shipping_quotes`
+
+| Campo | Tipo SQL | Tipo Go | Descrição |
+|-------|----------|---------|-----------|
+| `id` | `UUID` | `string` | Chave primária |
+| `from_cep` | `VARCHAR(8)` | `string` | CEP de origem |
+| `to_cep` | `VARCHAR(8)` | `string` | CEP de destino |
+| `weight_kg` | `DECIMAL(10,2)` | `float64` | Peso do pacote |
+| `price_cents` | `INTEGER` | `int` | Valor do frete em centavos |
+| `estimated_days` | `INTEGER` | `int` | Prazo estimado em dias |
+| `carrier` | `VARCHAR(100)` | `string` | Transportadora |
+| `service_name` | `VARCHAR(100)` | `string` | Nome do serviço |
+| `created_at` | `TIMESTAMPTZ` | `time.Time` | Data de criação |
+
+---
+
+### TrackingEvent (storage)
+
+> Evento de rastreamento persistido no PostgreSQL.
+
+**Struct:** `repository.TrackingEvent`
+**Arquivo:** `internal/repository/tracking_repo.go:5`
+**Tabela:** `tracking_events`
+
+| Campo | Tipo SQL | Tipo Go | Descrição |
+|-------|----------|---------|-----------|
+| `id` | `UUID` | `string` | Chave primária |
+| `order_id` | `VARCHAR(100)` | `string` | Identificador do pedido |
+| `location` | `VARCHAR(255)` | `string` | Local do evento |
+| `description` | `TEXT` | `string` | Descrição do evento |
+| `event_date` | `TIMESTAMPTZ` | `time.Time` | Data do evento |
+| `created_at` | `TIMESTAMPTZ` | `time.Time` | Data de criação |
 
 ---
 

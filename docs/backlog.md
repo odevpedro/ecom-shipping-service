@@ -44,10 +44,7 @@ _Nenhum item em andamento no momento._
 
 | Prioridade | Complexidade | Feature | Observação |
 |------------|--------------|---------|------------|
-| P0 | L | Persistência em PostgreSQL | Substituir dados em memória por tabelas `shipping_quotes` e `tracking_events` |
-| P1 | XL | Integração com transportadoras reais | Conectar APIs dos Correios (SIGEP Web / API de rastreamento) e alternativas (Jadlog, Loggi) |
 | P1 | M | Rastreamento real com webhook | Consumir webhook de status dos Correios em vez de eventos mock |
-| P2 | M | Testes de handler (integração) | Validar HTTP layer com `httptest.Server` — covers `POST /calculate` e `GET /track` |
 | P3 | S | Cálculo por dimensões volumétricas | Incorporar altura, largura e comprimento no preço final |
 | P3 | S | Cache de distância entre CEPs | Evitar recalcular `estimateDistance` para pares repetidos |
 
@@ -62,6 +59,9 @@ _Nenhum item em andamento no momento._
 | Cálculo de frete por CEP + peso | 2026-06-16 | `POST /api/shipping/calculate` — heurística de prefixo CEP + fórmula `peso * 50 + distancia * 1` |
 | Rastreamento stub | 2026-06-16 | `GET /api/shipping/{orderId}/track` — retorna 3 eventos mock fixos |
 | Health checks | 2026-06-16 | Endpoints `GET /health`, `/live`, `/ready` |
+| Persistência em PostgreSQL | 2026-06-17 | Camada `internal/repository` com DDL para `shipping_quotes` e `tracking_events`, conexão via `database/sql` + `lib/pq` |
+| Estrutura para transportadoras reais | 2026-06-17 | Interface `Carrier` em `internal/service/carrier.go`, `StubCarrier`, `CorreiosCarrier` scaffold |
+| Testes de handler (integração) | 2026-06-17 | `internal/handler/shipping_test.go` — 4 cenários com `httptest` |
 | Multi-stage Docker build | 2026-06-16 | `golang:1.22-alpine` → `alpine:3.20` (~20 MB final) |
 | Middleware de Request ID | 2026-06-16 | Cabeçalho `X-Request-ID` gerado automático ou herdado da request |
 | Erro padronizado | 2026-06-16 | Envelope `{ data, error: { code, message, details }, meta }` |

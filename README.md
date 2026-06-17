@@ -26,7 +26,7 @@ Faz parte de um ecossistema **polyglot** de microserviços (Go, Python, Node.js,
 | CI/CD         | GitHub Actions                       |
 | Testes        | Go testing (stdlib)                  |
 
-> Padrão arquitetural: **Handler → Service**. Sem ORM — dados em memória (stub).
+> Padrão arquitetural: **Handler → Service → Carrier interface**. PostgreSQL via `database/sql` + `lib/pq`.
 
 ---
 
@@ -40,12 +40,19 @@ internal/
 ├── config/config.go                   # Carregamento de env vars
 ├── handler/
 │   ├── shipping.go                    # Handlers HTTP (calculate + track)
+│   ├── shipping_test.go               # 4 testes de integração
 │   └── middleware.go                  # Request ID + error response helpers
 ├── model/shipping.go                  # Structs de domínio
 ├── service/
-│   ├── shipping.go                    # Lógica de negócio (frete + rastreio)
-│   └── shipping_test.go               # 4 testes
-└── repository/                        # (estrutura criada)
+│   ├── carrier.go                     # Interface Carrier (Calculate + Track)
+│   ├── carrier_stub.go               # StubCarrier — lógica legada em memória
+│   ├── carrier_correios.go           # CorreiosCarrier — scaffold (not implemented)
+│   ├── shipping.go                    # ShippingService — delega para Carrier
+│   └── shipping_test.go               # 4 testes unitários
+└── repository/
+    ├── postgres.go                    # Conexão PostgreSQL + DDL
+    ├── shipping_quote_repo.go         # CRUD shipping_quotes
+    └── tracking_repo.go               # CRUD tracking_events
 ```
 
 ---
@@ -84,10 +91,11 @@ A API estará disponível em `http://localhost:3005`.
 go test ./... -v
 ```
 
-**4 cenários:**
+**8 cenários:**
 | Suite                  | Arquivo                     | Cenários |
 |------------------------|----------------------------|----------|
 | Unitários (shipping)   | `service/shipping_test.go`  | 4        |
+| Integração (handler)   | `handler/shipping_test.go`  | 4        |
 
 ---
 
@@ -120,9 +128,9 @@ go test ./... -v
 [x] Rastreamento stub com eventos mock
 [x] Health checks + Request ID + erro padronizado
 [x] Multi-stage Docker build (Go 1.22 → Alpine)
-[ ] Persistência em PostgreSQL
-[ ] Integração com transportadoras reais
-[ ] Testes de integração (handler)
+[x] Persistência em PostgreSQL (repository layer + DDL)
+[x] Estrutura para transportadoras reais (Carrier interface + CorreiosCarrier scaffold)
+[x] Testes de integração (handler) — httptest
 ```
 
 ---
