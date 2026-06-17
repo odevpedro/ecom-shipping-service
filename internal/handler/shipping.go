@@ -20,7 +20,7 @@ func NewShippingHandler(svc *service.ShippingService) *ShippingHandler {
 func (h *ShippingHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 	var input model.CalculateInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		WriteError(w, r, "INVALID_REQUEST", "invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -32,7 +32,7 @@ func (h *ShippingHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 func (h *ShippingHandler) Track(w http.ResponseWriter, r *http.Request) {
 	orderID := mux.Vars(r)["orderId"]
 	if orderID == "" {
-		http.Error(w, `{"error":"orderId is required"}`, http.StatusBadRequest)
+		WriteError(w, r, "INVALID_REQUEST", "orderId is required", http.StatusBadRequest)
 		return
 	}
 

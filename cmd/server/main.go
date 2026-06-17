@@ -24,9 +24,19 @@ func main() {
 	shippingHandler := handler.NewShippingHandler(shippingSvc)
 
 	r := mux.NewRouter()
+	r.Use(handler.RequestIDMiddleware)
+
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok"}`))
+		w.Write([]byte(`{"status":"ok","service":"shipping"}`))
+	}).Methods("GET")
+	r.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"alive"}`))
+	}).Methods("GET")
+	r.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ready"}`))
 	}).Methods("GET")
 
 	r.HandleFunc("/api/shipping/calculate", shippingHandler.Calculate).Methods("POST")
